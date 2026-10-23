@@ -1,53 +1,23 @@
 ---
 title: Authentication
-description: How to authenticate requests, and how to document your own scheme.
+description: Quiz Tracker has no authentication. Here is what that means for who can read and change data.
 ---
 
-The Sample Posts API is intentionally public: no key, token, or header is
-required, so every request in this reference works the moment you press
-**Send**.
+Quiz Tracker has no accounts, API keys or sessions. Every endpoint is open to
+anyone who can reach the server.
 
-Your API almost certainly is not public. This page shows how to document the
-two most common schemes so readers always know exactly what to put in the
-request — replace it with the scheme your API uses.
+That is a deliberate scope choice for a self-hosted tool, and it has
+consequences you should plan for:
 
-## Documenting a bearer token
+- **Anyone who can reach the URL can create and delete quizzes.** Run it on a
+  private network or behind your own access control if that matters.
+- **The `studentName` on an attempt is self-reported.** It is a label for the
+  history, not an identity.
+- **Correct answers are still protected while a quiz is taken.**
+  `GET /api/quizzes/:id` never includes `correctAnswer`. Answers are only
+  returned in an attempt's results, after grading on the server.
 
-Show the header exactly as readers must send it, then where the token comes
-from:
-
-```bash
-curl --request GET \
-  --url 'https://api.yourproduct.com/v1/posts' \
-  --header 'Authorization: Bearer YOUR_API_TOKEN'
-```
-
-## Documenting an API key
-
-```bash
-curl --request GET \
-  --url 'https://api.yourproduct.com/v1/posts' \
-  --header 'X-Api-Key: YOUR_API_KEY'
-```
-
-## Declare the scheme in OpenAPI
-
-Add a security scheme to `openapi.yaml` and the generated endpoint pages will
-show the requirement — and the playground will prompt for the credential —
-automatically:
-
-```yaml
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-security:
-  - bearerAuth: []
-```
-
-<Tip>
-  Tell readers where to create and revoke credentials, how long they live, and
-  what happens when one expires. Those three answers prevent most
-  authentication support tickets.
-</Tip>
+<Note type="warning" title="The public demo is shared">
+  Because there is no authentication, anything you create on the live demo
+  is visible to and deletable by everyone. Use a local instance for testing.
+</Note>

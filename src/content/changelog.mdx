@@ -1,15 +1,18 @@
 ---
 title: Changelog
-description: Record product changes that alter how readers use the documented experience.
+description: Changes to Quiz Tracker that affect how you install, run or call it.
 ---
 
-## v0.1.0
+## 2026-10-23
 
-The first published version of this documentation.
+Setup changes in [commit 2899564](https://github.com/SECHUBSYSTEM/quiz-tracker/commit/2899564).
+If you cloned before this date, update your commands.
 
-- A task-focused introduction and quickstart
-- Browsable API documentation generated from `openapi.yaml`
-- Agent-readable discovery files and a read-only MCP endpoint
-
-Replace this entry with changes your readers need to understand. Lead with the
-impact, then link to the guide or reference that explains the new behavior.
+- **Create `.env` before `pnpm install`.** The install runs `prisma generate`,
+  which needs `DIRECT_URL`. The old order failed on a fresh clone.
+- **The migration script is now `pnpm run db:setup`.** It was `pnpm setup`,
+  which collides with a built-in pnpm command.
+- **pnpm 11 is the stated requirement**, matching the version pinned in
+  `package.json`.
+- **`GET /api/health` is now documented.**
+- **Quiz Tracker is MIT licensed.**

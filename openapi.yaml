@@ -1,146 +1,492 @@
 openapi: 3.1.0
 info:
-  title: Sample Posts API
+  title: Quiz Tracker API
   version: 1.0.0
   description: >-
-    A working sample backed by the public JSONPlaceholder service, so every
-    request in this reference returns a live response you can inspect. Replace
-    this file with the OpenAPI specification for the API your readers use.
+    The JSON API behind Quiz Tracker. Create quizzes, submit attempts for
+    server-side grading, and read scored history. Requests go to a local
+    instance; start one with the Quickstart. Validation rules are summarised
+    here; the source of truth is lib/validation.ts in the quiz-tracker
+    repository.
+  license:
+    name: MIT
+    url: https://github.com/SECHUBSYSTEM/quiz-tracker/blob/main/LICENSE
 servers:
-  - url: https://jsonplaceholder.typicode.com
-    description: Live demo server
+  - url: http://localhost:3000
+    description: Your local Quiz Tracker (see the Quickstart)
 tags:
-  - name: Posts
-    description: Create and read example posts.
-  - name: Users
-    description: Look up the example authors behind each post.
+  - name: Health
+    description: Check the app and its database are reachable.
+  - name: Quizzes
+    description: Create, list, read and delete quizzes.
+  - name: Attempts
+    description: Submit answers for grading and read past results.
 paths:
-  /posts:
+  /api/health:
     get:
-      operationId: listPosts
-      tags: [Posts]
-      summary: List posts
-      description: Return every post. Real APIs would paginate a list this size.
+      operationId: getHealth
+      tags: [Health]
+      summary: Check health
+      description: >-
+        Runs `SELECT 1` against Postgres. Returns 500 when the web server is up
+        but the database is not reachable.
       responses:
         '200':
-          description: All posts.
+          description: The app can reach the database.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Post'
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+        '500':
+          $ref: '#/components/responses/Internal'
+  /api/quizzes:
+    get:
+      operationId: listQuizzes
+      tags: [Quizzes]
+      summary: List quizzes
+      description: Every quiz, newest first, with question and attempt counts and the best score.
+      responses:
+        '200':
+          description: All quizzes.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [quizzes]
+                properties:
+                  quizzes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QuizSummary'
+        '500':
+          $ref: '#/components/responses/Internal'
     post:
-      operationId: createPost
-      tags: [Posts]
-      summary: Create a post
+      operationId: createQuiz
+      tags: [Quizzes]
+      summary: Create a quiz
       description: >-
-        Create a post and receive it back with a generated id. The demo server
-        accepts the write and echoes the result without storing it, so you can
-        try requests freely.
+        Creates a quiz and its questions. The response is the take-quiz view,
+        so it contains no correct answers. Free-text correct answers are
+        stored in lowercase. Multiple-choice correct answers must match one of
+        the options; true/false answers must be True or False.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                  example: Hello from the API playground
-                body:
-                  type: string
-                  example: This request runs against a live server.
-                userId:
-                  type: integer
-                  example: 1
-              required: [title, body, userId]
+              $ref: '#/components/schemas/CreateQuizRequest'
+            example:
+              title: Planets
+              questions:
+                - type: FREE_TEXT
+                  text: Which planet is closest to the Sun?
+                  correctAnswer: Mercury
+                - type: MULTIPLE_CHOICE
+                  text: Which planet is largest?
+                  options: [Mars, Jupiter, Venus]
+                  correctAnswer: Jupiter
+                - type: TRUE_FALSE
+                  text: Saturn has rings.
+                  correctAnswer: 'True'
       responses:
         '201':
-          description: The created post, including its generated id.
+          description: The created quiz, without correct answers.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Post'
-  /posts/{id}:
+                type: object
+                required: [quiz]
+                properties:
+                  quiz:
+                    $ref: '#/components/schemas/PublicQuiz'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /api/quizzes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
     get:
-      operationId: getPost
-      tags: [Posts]
-      summary: Get a post
-      description: Return one post by id. Ids 1–100 exist on the demo server.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: The post id.
-          schema:
-            type: integer
-            minimum: 1
-            example: 1
+      operationId: getQuiz
+      tags: [Quizzes]
+      summary: Get a quiz
+      description: >-
+        The quiz as a test-taker sees it. Questions are ordered by position
+        and never include the correct answer.
       responses:
         '200':
-          description: The requested post.
+          description: The quiz.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Post'
+                type: object
+                required: [quiz]
+                properties:
+                  quiz:
+                    $ref: '#/components/schemas/PublicQuiz'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
-          description: No post has this id.
-  /users/{id}:
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/Internal'
+    delete:
+      operationId: deleteQuiz
+      tags: [Quizzes]
+      summary: Delete a quiz
+      description: Deletes the quiz with its questions and every attempt. This cannot be undone.
+      responses:
+        '204':
+          description: Deleted. The response has no body.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /api/quizzes/{id}/attempts:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
     get:
-      operationId: getUser
-      tags: [Users]
-      summary: Get a user
-      description: Return the profile of an example author. Ids 1–10 exist.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: The user id.
-          schema:
-            type: integer
-            minimum: 1
-            example: 1
+      operationId: listAttempts
+      tags: [Attempts]
+      summary: List attempts
+      description: The 10 most recent attempts for a quiz, newest first, without per-question results.
       responses:
         '200':
-          description: The requested user.
+          description: Recent attempts.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
+                type: object
+                required: [attempts]
+                properties:
+                  attempts:
+                    type: array
+                    maxItems: 10
+                    items:
+                      $ref: '#/components/schemas/AttemptSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
-          description: No user has this id.
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      operationId: submitAttempt
+      tags: [Attempts]
+      summary: Submit an attempt
+      description: >-
+        Grades the answers on the server and stores the attempt in one
+        transaction. Questions with no submitted answer grade as incorrect.
+        Matching ignores case, accents, repeated spaces and punctuation at
+        either end. Returns 400 BAD_REQUEST if any questionId belongs to
+        another quiz.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitAttemptRequest'
+            example:
+              studentName: Grace Hopper
+              answers:
+                - questionId: cmvk9t8rp0001uo7asgkle6l9
+                  answer: mercury!
+                - questionId: cmvk9t8rp0002uo7am49s3diy
+                  answer: Jupiter
+                - questionId: cmvk9t8rq0003uo7a9nd8p8vd
+                  answer: 'False'
+      responses:
+        '201':
+          description: The graded attempt with its full breakdown.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempt]
+                properties:
+                  attempt:
+                    $ref: '#/components/schemas/AttemptDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /api/quizzes/{id}/attempts/{attemptId}:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+      - name: attemptId
+        in: path
+        required: true
+        description: The attempt id, from a submit or list response.
+        schema:
+          $ref: '#/components/schemas/Id'
+    get:
+      operationId: getAttempt
+      tags: [Attempts]
+      summary: Get an attempt
+      description: >-
+        One attempt with every question's submitted answer, the correct answer
+        as it was when graded, and whether it was correct.
+      responses:
+        '200':
+          description: The attempt.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempt]
+                properties:
+                  attempt:
+                    $ref: '#/components/schemas/AttemptDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/Internal'
 components:
+  parameters:
+    QuizId:
+      name: id
+      in: path
+      required: true
+      description: The quiz id, from a create or list response.
+      schema:
+        $ref: '#/components/schemas/Id'
   schemas:
-    Post:
+    Id:
+      type: string
+      pattern: '^[a-zA-Z0-9]{20,40}$'
+      example: cmvk9t8q80000uo7ahmmketwu
+    QuestionType:
+      type: string
+      enum: [FREE_TEXT, MULTIPLE_CHOICE, TRUE_FALSE]
+    QuestionInput:
       type: object
+      additionalProperties: false
+      required: [type, text, correctAnswer]
       properties:
-        id:
-          type: integer
-          example: 1
-        userId:
-          type: integer
-          example: 1
+        type:
+          $ref: '#/components/schemas/QuestionType'
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        correctAnswer:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: >-
+            Free text: any answer (stored lowercase). Multiple choice: one of
+            the options. True/false: True or False.
+        options:
+          type: array
+          maxItems: 10
+          default: []
+          description: Required for MULTIPLE_CHOICE (2 to 10, no duplicates). Must be empty for other types.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 200
+    CreateQuizRequest:
+      type: object
+      additionalProperties: false
+      required: [title, questions]
+      properties:
         title:
           type: string
-          example: Hello from the API playground
-        body:
-          type: string
-          example: This request runs against a live server.
-      required: [id, userId, title, body]
-    User:
+          minLength: 1
+          maxLength: 200
+        questions:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/QuestionInput'
+    SubmitAttemptRequest:
       type: object
+      additionalProperties: false
+      required: [answers]
+      properties:
+        studentName:
+          type: string
+          maxLength: 80
+          description: Optional label shown in the attempt history.
+        answers:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [questionId, answer]
+            properties:
+              questionId:
+                type: string
+                minLength: 1
+              answer:
+                type: string
+                maxLength: 500
+                description: May be empty; an empty answer grades as incorrect.
+    PublicQuestion:
+      type: object
+      required: [id, position, type, text, options]
       properties:
         id:
+          $ref: '#/components/schemas/Id'
+        position:
           type: integer
-          example: 1
-        name:
+          minimum: 0
+        type:
+          $ref: '#/components/schemas/QuestionType'
+        text:
           type: string
-          example: Leanne Graham
-        username:
+        options:
+          type: array
+          items:
+            type: string
+          description: Empty for free-text and true/false questions.
+    PublicQuiz:
+      type: object
+      required: [id, title, createdAt, questions]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        title:
           type: string
-          example: Bret
-        email:
+        createdAt:
           type: string
-          example: Sincere@april.biz
-      required: [id, name, username, email]
+          format: date-time
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicQuestion'
+    QuizSummary:
+      type: object
+      required: [id, title, createdAt, questionCount, attemptCount, bestScorePercent]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        questionCount:
+          type: integer
+        attemptCount:
+          type: integer
+        bestScorePercent:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 100
+          description: Best score as a rounded percentage, or null before the first attempt.
+    AttemptSummary:
+      type: object
+      required: [id, studentName, score, totalQuestions, submittedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        studentName:
+          type: [string, 'null']
+        score:
+          type: integer
+          minimum: 0
+        totalQuestions:
+          type: integer
+          minimum: 0
+        submittedAt:
+          type: string
+          format: date-time
+    AttemptResult:
+      type: object
+      required: [questionId, questionText, submittedAnswer, correctAnswer, isCorrect]
+      properties:
+        questionId:
+          $ref: '#/components/schemas/Id'
+        questionText:
+          type: string
+        submittedAnswer:
+          type: string
+        correctAnswer:
+          type: string
+          description: The correct answer as it was when the attempt was graded.
+        isCorrect:
+          type: boolean
+    AttemptDetail:
+      allOf:
+        - $ref: '#/components/schemas/AttemptSummary'
+        - type: object
+          required: [quizId, quizTitle, results]
+          properties:
+            quizId:
+              $ref: '#/components/schemas/Id'
+            quizTitle:
+              type: string
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/AttemptResult'
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [message, code]
+          properties:
+            message:
+              type: string
+            code:
+              type: string
+              enum: [BAD_REQUEST, VALIDATION_ERROR, NOT_FOUND, CONFLICT, INTERNAL]
+            fieldErrors:
+              type: object
+              description: >-
+                Dotted field path to messages, for example
+                "questions.0.options". Body-level problems use the key _root.
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+  responses:
+    BadRequest:
+      description: Invalid JSON, a failed validation, a malformed id, or an answer for a question outside this quiz.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: The submitted data is invalid.
+              code: VALIDATION_ERROR
+              fieldErrors:
+                title: [Title is required.]
+                questions.0.options: [Add at least 2 options.]
+    NotFound:
+      description: No quiz or attempt with that id.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: Quiz not found.
+              code: NOT_FOUND
+    Internal:
+      description: An unexpected server error, such as the database being unreachable. Details are logged, not returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: Something went wrong. Please try again.
+              code: INTERNAL

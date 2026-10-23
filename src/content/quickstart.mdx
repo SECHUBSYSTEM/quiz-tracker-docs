@@ -1,47 +1,139 @@
 ---
 title: Quickstart
-description: Guide a new reader through one useful workflow and show them how to verify it.
+description: Run Quiz Tracker on your machine, build a three-question quiz, take it, and see a graded result.
 ---
 
-A strong quickstart produces one meaningful result. Replace the placeholders
-below with the shortest supported path for your product.
+In about ten minutes you will have Quiz Tracker running at
+`http://localhost:3000`, with a quiz you built and a scored attempt you can
+reopen later.
 
 ## Before you begin
 
-List only the requirements needed for this workflow:
+- **Node.js 20.11 or later.**
+- **pnpm 11.** Run `corepack enable` and pnpm picks up the version pinned in
+  `package.json`.
+- **Docker** with Compose, for the bundled Postgres. Any PostgreSQL 14+ works
+  instead; see the note in step 2.
+- Port `5432` free for Postgres and port `3000` free for the app.
 
-- An account or credential, when required
-- A supported runtime, device, browser, or operating system
-- Permission to create or change the resource used in the example
+<Note type="warning" title="The order of the first three steps matters">
+  Create `.env` **before** you run `pnpm install`. The install runs
+  `prisma generate`, and Prisma 7 refuses to start without `DIRECT_URL`.
+</Note>
 
 <Steps>
-  <Step title="Install the required tool">
-    Give readers one recommended installation command.
-
+  <Step title="Clone the repository and create .env">
     ```bash
-    npm install your-package
+    git clone https://github.com/SECHUBSYSTEM/quiz-tracker.git
+    cd quiz-tracker
+    cp .env.example .env
     ```
-  </Step>
-  <Step title="Add the minimum configuration">
-    Include only the values needed for the first successful run.
 
-    ```bash
-    your-cli init
-    ```
+    The defaults in `.env` already point at the Docker database from the next
+    step. On Windows Command Prompt, use `copy .env.example .env`.
   </Step>
-  <Step title="Complete the first task">
-    Use a realistic example that produces an observable result.
+  <Step title="Start Postgres">
+    ```bash
+    docker compose up -d
+    ```
 
-    ```bash
-    your-cli start
-    ```
+    This starts Postgres 17 on `localhost:5432` with database `quiz_tracker`
+    and user and password `quiz`. Using your own Postgres instead? Create an
+    empty database and set both `DATABASE_URL` and `DIRECT_URL` in `.env` to
+    its connection string.
   </Step>
-  <Step title="Verify the result">
-    State exactly what the reader should see and how to recover when it does not appear.
+  <Step title="Install dependencies">
+    ```bash
+    pnpm install
+    ```
+
+    The last lines should include `Generated Prisma Client`.
+  </Step>
+  <Step title="Create the tables and start the app">
+    ```bash
+    pnpm run db:setup
+    pnpm dev
+    ```
+
+    `db:setup` applies the migrations and prints `Your database is now in sync
+    with your schema.` Then open [http://localhost:3000](http://localhost:3000).
+
+    <Note type="info" title="Use pnpm run db:setup, not pnpm setup">
+      `setup` is also a built-in pnpm command that edits your shell profile.
+      Typing `run` makes sure you get the project script.
+    </Note>
+  </Step>
+  <Step title="Build a quiz">
+    Select **Create a quiz**. Give it a title, then add three questions using
+    the type switch on each card: one **Free text**, one **Multiple choice**
+    with at least two options, and one **True / False**. Select **Create quiz**.
+
+    ![The quiz builder with a free-text, a multiple-choice and a true/false question](/images/builder.png)
+  </Step>
+  <Step title="Take it and check the score">
+    On the quiz page, enter a name and select **Start quiz**. Answer each
+    question, select **Review**, then **Submit answers**.
+
+    ![Answering the free-text question during a quiz](/images/take-quiz.png)
   </Step>
 </Steps>
 
-## Choose the next task
+## Check your result
 
-Link to the guide that naturally follows this result. Avoid ending the reader’s
-journey with a generic list of every feature.
+You land on the attempt page. It shows your score as a fraction and a
+percentage, and lists every question marked **Correct** or **Incorrect**.
+Wrong answers also show the correct one.
+
+![The score breakdown: 2 of 3 correct, with the correct answer shown for the wrong one](/images/score-breakdown.png)
+
+Go back to the quiz page and the attempt appears under **Attempt history**.
+Select it at any time to reopen the same breakdown.
+
+<Tip>
+  Want something to click through straight away? Run `pnpm db:seed` to add
+  three sample quizzes, one per question type. It is safe to run again and
+  leaves your own quizzes alone.
+</Tip>
+
+## If something goes wrong
+
+### `pnpm install` fails with "Set DIRECT_URL"
+
+The full message starts `Failed to load config file` and ends
+`Set DIRECT_URL (or DATABASE_URL_UNPOOLED) for Prisma migrations`. Your `.env`
+is missing. Run `cp .env.example .env`, then `pnpm install` again.
+
+### `db:setup` fails with P1001
+
+```text
+Error: P1001: Can't reach database server at `localhost:5432`
+```
+
+Postgres isn't running. Run `docker compose up -d`, wait a few seconds, and
+check that `docker compose ps` shows `healthy`.
+
+### Docker says the port is already allocated
+
+Something else is using port `5432`. Stop it, or change the left-hand port in
+`docker-compose.yml` and the port in both URLs in `.env` to match.
+
+### `pnpm setup` edited your shell profile
+
+The bare command ran pnpm's built-in `setup`. Run `pnpm run db:setup` instead.
+
+### On Windows, Submit answers fails with an HTML 404
+
+Quizzes load, but `/api/quizzes/<id>/attempts` returns a Next.js 404 page
+instead of JSON. This was seen when the project sat in a very deep folder; the
+same commit worked from a short path such as `C:\Users\you\quiz-tracker`.
+Clone into a short path, delete `.next`, and run `pnpm dev` again.
+
+### The page loads but no quizzes appear
+
+Open [http://localhost:3000/api/health](http://localhost:3000/api/health).
+Anything other than `{"status":"ok"}` means the app can't reach the database.
+
+## Next step
+
+Everything you just did in the browser goes through a small REST API. Learn
+to drive it from a script in [Drive the API from a script](/guides/api).

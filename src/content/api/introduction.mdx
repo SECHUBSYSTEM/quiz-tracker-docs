@@ -1,49 +1,57 @@
 ---
 title: API overview
 navTitle: Overview
-description: What this API reference covers and how to try every request live.
+description: What the Quiz Tracker REST API covers, its base URL, and how to make your first request.
 ---
 
-This reference documents the Sample Posts API — a small, working API backed by
-the public [JSONPlaceholder](https://jsonplaceholder.typicode.com) service.
-Every endpoint page has a **Send** button that runs the real request from your
-browser, so you can inspect live responses before writing a line of code.
+The Quiz Tracker API is a small JSON API with eight operations: one health
+check, four for quizzes, and three for attempts. The web interface uses
+exactly this API, so anything you can do in the browser you can do from a
+script.
 
 ## Base URL
 
-All requests use the same base URL:
+The reference uses a local instance:
 
 ```text
-https://jsonplaceholder.typicode.com
+http://localhost:3000
 ```
+
+Start one with the [Quickstart](/quickstart). The public demo at
+`https://quiz-tracker-eight.vercel.app` serves the same API, but it is a
+shared database, so use it for reads only.
+
+<Note type="warning" title="Use the generated curl, not Send">
+  Each endpoint page shows a ready-to-run request. The **Try it** panel's
+  **Send** button can't reach it: Thally's playground proxy refuses
+  `localhost` and other private addresses with
+  `403 Private or unsafe targets are not allowed`. Copy the curl command and
+  run it in your terminal instead. The reference deliberately doesn't target
+  the shared live demo, so test writes never land in a database other people use.
+</Note>
 
 ## Try your first request
 
 <Steps>
-  <Step title="Open an endpoint">
-    Pick **Get a post** from the Posts group in the sidebar.
+  <Step title="Start Quiz Tracker locally">
+    Follow the [Quickstart](/quickstart) until `pnpm dev` is running.
   </Step>
-  <Step title="Send it">
-    Keep the default id of `1` and press **Send**. The response panel shows a
-    real `200` with the post body.
+  <Step title="Check health">
+    Open **Check health** in the Health group, or run
+    `curl http://localhost:3000/api/health`. Expect `{"status":"ok"}`.
   </Step>
-  <Step title="Change the input">
-    Try an id above `100` to see the API's `404` behavior.
+  <Step title="Create and grade a quiz">
+    Work through [Drive the API from a script](/guides/api) for the full
+    create, submit and read flow with real responses.
   </Step>
 </Steps>
 
-Writes are safe to experiment with: the demo server accepts `POST` requests
-and echoes the created resource back with a generated id without storing it.
+## Conventions
 
-## Make this reference yours
-
-This sample exists so the reference has something real to show. To document
-your own API, replace `openapi.yaml` at the repository root with your
-specification — the endpoint pages, navigation, and playground regenerate from
-it on the next publish.
-
-<Note type="info" title="Keep the overview pages">
-  Readers orient faster when a reference opens with what the API does, how to
-  authenticate, and one runnable request. Rewrite this page and
-  [Authentication](/api/authentication) for your API instead of deleting them.
-</Note>
+- Request and response bodies are JSON. Send `Content-Type: application/json`.
+- Request bodies are strict: unknown fields are rejected with `400`.
+- Ids are opaque strings of 20 to 40 letters and digits.
+- Timestamps are ISO 8601 strings in UTC.
+- Every error has the shape
+  `{ "error": { "message", "code", "fieldErrors"? } }`. See
+  [Errors](/guides/api#errors).

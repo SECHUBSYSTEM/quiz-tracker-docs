@@ -1,0 +1,287 @@
+---
+title: Drive the API from a script
+description: Create a quiz, submit an attempt and read the graded result through the Quiz Tracker REST API, with curl or fetch.
+---
+
+Everything the Quiz Tracker interface does goes through a small JSON API under
+`/api`. In this guide you create a quiz, submit an attempt, read the graded
+breakdown and clean up, using curl or a short Node.js script. Every response
+shown here was captured from a running instance.
+
+## Before you begin
+
+- Quiz Tracker running locally at `http://localhost:3000`. Follow the
+  [Quickstart](/quickstart) if it isn't.
+- curl, or Node.js 20.11+ for the `fetch` examples.
+
+<Note type="warning" title="Use your local instance, not the live demo">
+  The [live demo](https://quiz-tracker-eight.vercel.app) is a shared database.
+  Reading from it is fine, but quizzes and attempts you create there are
+  visible to everyone.
+</Note>
+
+## The endpoints
+
+| Method and path | What it does | Success |
+| --- | --- | --- |
+| `GET /api/health` | Checks the app can reach the database | `200` |
+| `GET /api/quizzes` | Lists quizzes with counts and best score | `200` |
+| `POST /api/quizzes` | Creates a quiz with its questions | `201` |
+| `GET /api/quizzes/:id` | Gets one quiz for taking, **without** answers | `200` |
+| `DELETE /api/quizzes/:id` | Deletes a quiz and all its attempts | `204`, empty body |
+| `GET /api/quizzes/:id/attempts` | Lists the latest 10 attempts, newest first | `200` |
+| `POST /api/quizzes/:id/attempts` | Grades and stores an attempt | `201` |
+| `GET /api/quizzes/:id/attempts/:attemptId` | Gets one attempt's breakdown | `200` |
+
+The [API reference](/api) lists every field.
+
+<Steps>
+  <Step title="Check the API is up">
+    <Tabs>
+      <Tab title="curl">
+        ```bash
+        curl http://localhost:3000/api/health
+        ```
+      </Tab>
+      <Tab title="fetch">
+        ```js
+        const res = await fetch("http://localhost:3000/api/health");
+        console.log(res.status, await res.json());
+        ```
+      </Tab>
+    </Tabs>
+
+    You should get `{"status":"ok"}`. This route runs `SELECT 1` against
+    Postgres, so it fails if the database is down even when the web server is up.
+  </Step>
+  <Step title="Create a quiz">
+    A quiz needs a `title` and 1 to 50 `questions`. Each question has a
+    `type` of `FREE_TEXT`, `MULTIPLE_CHOICE` or `TRUE_FALSE`, the question
+    `text`, and a `correctAnswer`. Multiple-choice questions also need 2 to 10
+    `options`, and the correct answer must be one of them. True/false answers
+    must be `True` or `False`.
+
+    <Tabs>
+      <Tab title="curl">
+        ```bash
+        curl -X POST http://localhost:3000/api/quizzes \
+          -H "Content-Type: application/json" \
+          -d '{
+            "title": "Planets",
+            "questions": [
+              { "type": "FREE_TEXT", "text": "Which planet is closest to the Sun?", "correctAnswer": "Mercury" },
+              { "type": "MULTIPLE_CHOICE", "text": "Which planet is largest?", "options": ["Mars", "Jupiter", "Venus"], "correctAnswer": "Jupiter" },
+              { "type": "TRUE_FALSE", "text": "Saturn has rings.", "correctAnswer": "True" }
+            ]
+          }'
+        ```
+      </Tab>
+      <Tab title="fetch">
+        ```js
+        const res = await fetch("http://localhost:3000/api/quizzes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: "Planets",
+            questions: [
+              { type: "FREE_TEXT", text: "Which planet is closest to the Sun?", correctAnswer: "Mercury" },
+              { type: "MULTIPLE_CHOICE", text: "Which planet is largest?", options: ["Mars", "Jupiter", "Venus"], correctAnswer: "Jupiter" },
+              { type: "TRUE_FALSE", text: "Saturn has rings.", correctAnswer: "True" },
+            ],
+          }),
+        });
+        const { quiz } = await res.json();
+        console.log(res.status, quiz.id, quiz.questions.map((q) => q.id));
+        ```
+      </Tab>
+    </Tabs>
+
+    The response is `201` with the new quiz. Note that it contains **no**
+    `correctAnswer` fields:
+
+    ```json
+    {
+      "quiz": {
+        "id": "cmvk9t8q80000uo7ahmmketwu",
+        "title": "Planets",
+        "createdAt": "2026-10-23T01:07:46.929Z",
+        "questions": [
+          { "id": "cmvk9t8rp0001uo7asgkle6l9", "position": 0, "type": "FREE_TEXT", "text": "Which planet is closest to the Sun?", "options": [] },
+          { "id": "cmvk9t8rp0002uo7am49s3diy", "position": 1, "type": "MULTIPLE_CHOICE", "text": "Which planet is largest?", "options": ["Mars", "Jupiter", "Venus"] },
+          { "id": "cmvk9t8rq0003uo7a9nd8p8vd", "position": 2, "type": "TRUE_FALSE", "text": "Saturn has rings.", "options": [] }
+        ]
+      }
+    }
+    ```
+
+    Copy the quiz `id` and the three question `id` values. Your ids will differ.
+  </Step>
+  <Step title="Submit an attempt">
+    Send one answer per question, keyed by question id. `studentName` is
+    optional. A blank answer is allowed and grades as incorrect.
+
+    <Tabs>
+      <Tab title="curl">
+        ```bash
+        QUIZ_ID=cmvk9t8q80000uo7ahmmketwu   # replace with your ids
+
+        curl -X POST http://localhost:3000/api/quizzes/$QUIZ_ID/attempts \
+          -H "Content-Type: application/json" \
+          -d '{
+            "studentName": "Grace Hopper",
+            "answers": [
+              { "questionId": "cmvk9t8rp0001uo7asgkle6l9", "answer": "mercury!" },
+              { "questionId": "cmvk9t8rp0002uo7am49s3diy", "answer": "Jupiter" },
+              { "questionId": "cmvk9t8rq0003uo7a9nd8p8vd", "answer": "False" }
+            ]
+          }'
+        ```
+      </Tab>
+      <Tab title="fetch">
+        ```js
+        const quizId = "cmvk9t8q80000uo7ahmmketwu"; // replace with your ids
+        const res = await fetch(`http://localhost:3000/api/quizzes/${quizId}/attempts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentName: "Grace Hopper",
+            answers: [
+              { questionId: "cmvk9t8rp0001uo7asgkle6l9", answer: "mercury!" },
+              { questionId: "cmvk9t8rp0002uo7am49s3diy", answer: "Jupiter" },
+              { questionId: "cmvk9t8rq0003uo7a9nd8p8vd", answer: "False" },
+            ],
+          }),
+        });
+        const { attempt } = await res.json();
+        console.log(`${attempt.score}/${attempt.totalQuestions}`, attempt.id);
+        ```
+      </Tab>
+    </Tabs>
+
+    The server grades it and returns `201` with the full breakdown. Now that the
+    attempt is submitted, the correct answers are included:
+
+    ```json
+    {
+      "attempt": {
+        "id": "cmvk9wdl10000zo7avbourt8g",
+        "studentName": "Grace Hopper",
+        "score": 2,
+        "totalQuestions": 3,
+        "submittedAt": "2026-10-23T01:10:13.190Z",
+        "quizId": "cmvk9t8q80000uo7ahmmketwu",
+        "quizTitle": "Planets",
+        "results": [
+          { "questionId": "cmvk9t8rp0001uo7asgkle6l9", "questionText": "Which planet is closest to the Sun?", "submittedAnswer": "mercury!", "correctAnswer": "mercury", "isCorrect": true },
+          { "questionId": "cmvk9t8rp0002uo7am49s3diy", "questionText": "Which planet is largest?", "submittedAnswer": "Jupiter", "correctAnswer": "Jupiter", "isCorrect": true },
+          { "questionId": "cmvk9t8rq0003uo7a9nd8p8vd", "questionText": "Saturn has rings.", "submittedAnswer": "False", "correctAnswer": "True", "isCorrect": false }
+        ]
+      }
+    }
+    ```
+
+    `mercury!` counts as correct. Grading ignores case, accents, extra spaces
+    and punctuation at either end, but keeps punctuation inside an answer so
+    `3.14` and `St. Louis` still work. Free-text correct answers are stored in
+    lowercase, which is why `correctAnswer` reads `mercury`.
+  </Step>
+  <Step title="Read the history and the stats">
+    ```bash
+    curl http://localhost:3000/api/quizzes/$QUIZ_ID/attempts
+    curl http://localhost:3000/api/quizzes/$QUIZ_ID/attempts/ATTEMPT_ID
+    curl http://localhost:3000/api/quizzes
+    ```
+
+    The first returns summaries without the per-question results. The second
+    returns the same breakdown as the submit call. The quiz list now shows the
+    attempt:
+
+    ```json
+    { "quizzes": [ { "id": "cmvk9t8q80000uo7ahmmketwu", "title": "Planets", "createdAt": "2026-10-23T01:07:46.929Z", "questionCount": 3, "attemptCount": 1, "bestScorePercent": 67 } ] }
+    ```
+
+    `bestScorePercent` is a rounded percentage, or `null` before the first attempt.
+  </Step>
+  <Step title="Clean up">
+    ```bash
+    curl -i -X DELETE http://localhost:3000/api/quizzes/$QUIZ_ID
+    ```
+
+    You get `204 No Content` with an empty body. The quiz's questions and
+    attempts are deleted with it. Fetching the quiz again returns `404`.
+  </Step>
+</Steps>
+
+## Errors
+
+Every error uses the same shape, so one handler covers the whole API:
+
+```json
+{ "error": { "message": "The submitted data is invalid.", "code": "VALIDATION_ERROR", "fieldErrors": { "title": ["Title is required."], "questions.0.options": ["Add at least 2 options."] } } }
+```
+
+| Status | `code` | When |
+| --- | --- | --- |
+| `400` | `VALIDATION_ERROR` | The body or an id failed validation. `fieldErrors` maps each dotted field path to its messages. Problems with the whole body use the key `_root`. |
+| `400` | `BAD_REQUEST` | The body isn't valid JSON, or an attempt references a question from another quiz. |
+| `404` | `NOT_FOUND` | No quiz or attempt has that id. |
+| `500` | `INTERNAL` | Something unexpected failed on the server. Details are logged server-side, never returned. |
+
+`fieldErrors` paths match the request body, so `questions.0.options` means the
+`options` of the first question. You can map them straight onto form fields.
+
+## Troubleshooting
+
+### curl can't connect
+
+```text
+curl: (7) Failed to connect to localhost port 3000
+```
+
+The app isn't running. Start it with `pnpm dev`.
+
+### Health returns 500
+
+`/api/health` returns `500` with `"code":"INTERNAL"`. The web server is up but
+can't reach Postgres. Run `docker compose up -d` and check that
+`docker compose ps` shows `healthy`.
+
+### 400 with "Unrecognized key"
+
+```json
+{ "_root": ["Unrecognized key: \"extra\""] }
+```
+
+Request bodies are strict. Remove any field the endpoint doesn't define.
+
+### 400 with "Malformed id."
+
+The id isn't a valid quiz or attempt id. Copy it from a previous response
+rather than typing it.
+
+### 400 with "Submission references question(s)..."
+
+A `questionId` belongs to a different quiz. Fetch the quiz again with
+`GET /api/quizzes/:id` and use its question ids.
+
+### 404 with NOT_FOUND
+
+The quiz or attempt was deleted, or the id comes from a different database,
+such as the live demo.
+
+### A 404 HTML page instead of JSON
+
+The path doesn't match any endpoint. Check for a missing `/api` prefix or a
+typo in `attempts`. On Windows, also see the
+[deep-folder note in the Quickstart](/quickstart#on-windows-submit-answers-fails-with-an-html-404).
+
+### The live demo takes 10 to 15 seconds to answer
+
+The demo's database sleeps when idle and wakes on the first request. Later
+requests are fast.
+
+## Next steps
+
+- Browse every field in the [API reference](/api).
+- Read why grading works the way it does in the
+  [project README](https://github.com/SECHUBSYSTEM/quiz-tracker#decisions--trade-offs).

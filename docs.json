@@ -17,7 +17,7 @@
   },
   "navbar": {
     "primary": {
-      "label": "Get started",
+      "label": "Run it locally",
       "href": "/quickstart"
     }
   },
@@ -33,23 +33,9 @@
           ]
         },
         {
-          "group": "Design your docs",
+          "group": "Guides",
           "pages": [
-            "components",
-            "customization"
-          ]
-        }
-      ]
-    },
-    {
-      "tab": "Guides",
-      "groups": [
-        {
-          "group": "Work with Thally",
-          "pages": [
-            "guides/create-a-site",
-            "guides/work-with-the-cli",
-            "guides/connect-ai-tools"
+            "guides/api"
           ]
         }
       ]
@@ -66,7 +52,12 @@
         }
       ],
       "api": {
-        "source": "openapi.yaml"
+        "source": "openapi.yaml",
+        "tagsOrder": [
+          "Health",
+          "Quizzes",
+          "Attempts"
+        ]
       }
     },
     {

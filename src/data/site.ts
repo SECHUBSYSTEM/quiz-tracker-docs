@@ -160,13 +160,13 @@ const brandPresets: Record<BrandPresetKey, BrandConfig> = {
 const brandPreset: BrandPresetKey = 'primary'
 
 export const siteConfig: SiteConfig = {
-  name: 'Quiz Tracker Docs',
+  name: 'Quiz Tracker',
   description:
-    'Documentation for Quiz Tracker Docs.',
-  repoUrl: '',
+    'Build a quiz, take it, and track scores. Run Quiz Tracker locally and script its REST API.',
+  repoUrl: 'https://github.com/SECHUBSYSTEM/quiz-tracker',
   links: [
-    { label: 'Get started', href: '/quickstart' },
-    { label: 'Changelog', href: '/changelog' },
+    { label: 'Live demo', href: 'https://quiz-tracker-eight.vercel.app' },
+    { label: 'GitHub', href: 'https://github.com/SECHUBSYSTEM/quiz-tracker' },
   ],
   brand: brandPresets[brandPreset],
   brandPreset,
