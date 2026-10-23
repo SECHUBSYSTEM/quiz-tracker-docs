@@ -24,8 +24,8 @@ shared database, so use it for reads only.
 <Note type="warning" title="Use the generated curl, not Send">
   Each endpoint page shows a ready-to-run request. The **Try it** panel's
   **Send** button can't reach it: Thally's playground proxy refuses
-  `localhost` and other private addresses with
-  `403 Private or unsafe targets are not allowed`. Copy the curl command and
+  `localhost` and other private addresses with a `403` and the message
+  "Private or unsafe targets are not allowed". Copy the curl command and
   run it in your terminal instead. The reference deliberately doesn't target
   the shared live demo, so test writes never land in a database other people use.
 </Note>
@@ -52,6 +52,5 @@ shared database, so use it for reads only.
 - Request bodies are strict: unknown fields are rejected with `400`.
 - Ids are opaque strings of 20 to 40 letters and digits.
 - Timestamps are ISO 8601 strings in UTC.
-- Every error has the shape
-  `{ "error": { "message", "code", "fieldErrors"? } }`. See
-  [Errors](/guides/api#errors).
+- Every error is an `error` object with a `message`, a `code` and, for
+  validation failures, `fieldErrors`. See [Errors](/guides/api#errors).

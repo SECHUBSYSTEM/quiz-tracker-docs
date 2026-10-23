@@ -55,8 +55,8 @@ reopen later.
     pnpm dev
     ```
 
-    `db:setup` applies the migrations and prints `Your database is now in sync
-    with your schema.` Then open [http://localhost:3000](http://localhost:3000).
+    `db:setup` applies the migrations and prints "Your database is now in sync
+    with your schema." Then open [http://localhost:3000](http://localhost:3000).
 
     <Note type="info" title="Use pnpm run db:setup, not pnpm setup">
       `setup` is also a built-in pnpm command that edits your shell profile.
@@ -99,9 +99,9 @@ Select it at any time to reopen the same breakdown.
 
 ### `pnpm install` fails with "Set DIRECT_URL"
 
-The full message starts `Failed to load config file` and ends
-`Set DIRECT_URL (or DATABASE_URL_UNPOOLED) for Prisma migrations`. Your `.env`
-is missing. Run `cp .env.example .env`, then `pnpm install` again.
+The full message starts "Failed to load config file" and ends "Set
+DIRECT_URL (or DATABASE_URL_UNPOOLED) for Prisma migrations". Your `.env` is
+missing. Run `cp .env.example .env`, then `pnpm install` again.
 
 ### `db:setup` fails with P1001
 
